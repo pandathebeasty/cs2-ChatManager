@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ChatManager</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.374" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ChatManagerApi is a SHARED API: it lives once in addons/counterstrikesharp/shared and every
+         provider loads it from there, so Private=false stops a local copy being emitted here. -->
+    <ProjectReference Include="..\ChatManagerApi\ChatManagerApi.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Soft dependency: used only to query gag/silence status so gagged players stay silent.
+         Private=false because SimpleAdmin ships its own copy; we just compile against the contract. -->
+    <Reference Include="CS2-SimpleAdminApi">
+      <HintPath>3rd_party\CS2-SimpleAdminApi.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,18 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# User / IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Build logs
+*.binlog
+msbuild.log
+
+# OS
+.DS_Store
+Thumbs.db
