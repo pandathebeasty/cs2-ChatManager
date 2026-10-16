@@ -359,7 +359,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         var orderedPrefixes = tags
             .Where(t => !string.IsNullOrEmpty(t.ChatPrefix))
             .OrderBy(t => t.Order)
-            .Select(t => ColorResolver.ResolveTokens(t.ChatPrefix, team).Trim())
+            .Select(t => ColorResolver.ResolveTokens(t.ChatPrefix, team).Trim(' '))
             .Where(p => p.Length > 0)
             .ToList();
 
