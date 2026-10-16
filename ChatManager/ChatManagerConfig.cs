@@ -17,18 +17,88 @@ public sealed class ChatManagerConfig : BasePluginConfig
     [JsonPropertyName("AdminPlusDataPath")]
     public string AdminPlusDataPath { get; set; } = "addons/counterstrikesharp/plugins/AdminPlus/communication_data.json";
 
-    /// <summary>
-    /// Dead players get this prefix before their tag (chat colour tokens allowed). Empty to disable.
-    /// </summary>
-    [JsonPropertyName("DeadPrefix")]
-    public string DeadPrefix { get; set; } = "{default}* ";
+    // ---- Chat formats: one per message type that exists in the game ----
+    // Two channels (say = all chat, say_team = team chat), crossed with the sender's team
+    // (CT / T / Spectator) and alive / dead. Unassigned players use the Spectator formats.
+    //
+    // Placeholders:
+    //   {1}                  tags + coloured name
+    //   {2}                  coloured message (also {message} / {msg})
+    //   {name}               coloured name only
+    //   {tag}                provider tags only (VIP, ADMIN, ...)
+    //   {location}           sender's current map callout (e.g. BombsiteA); empty if unknown
+    // Colour tokens ({red}, {teamcolor}, {default}, ...) are allowed anywhere in a format.
+    // An empty format falls back to "{1} : {2}".
+
+    // ---- All chat (say) ----
+
+    /// <summary>All chat, CT, alive.</summary>
+    [JsonPropertyName("CS2_Chat_All_CT")]
+    public string AllCT { get; set; } = "{1} : {2}";
+
+    /// <summary>All chat, T, alive.</summary>
+    [JsonPropertyName("CS2_Chat_All_T")]
+    public string AllT { get; set; } = "{1} : {2}";
+
+    /// <summary>All chat, CT, dead.</summary>
+    [JsonPropertyName("CS2_Chat_All_CT_Dead")]
+    public string AllCTDead { get; set; } = "*DEAD* {1} : {2}";
+
+    /// <summary>All chat, T, dead.</summary>
+    [JsonPropertyName("CS2_Chat_All_T_Dead")]
+    public string AllTDead { get; set; } = "*DEAD* {1} : {2}";
+
+    /// <summary>All chat, spectator.</summary>
+    [JsonPropertyName("CS2_Chat_All_Spec")]
+    public string AllSpec { get; set; } = "*SPEC* {1} : {2}";
+
+    // ---- Team chat (say_team) ----
+
+    /// <summary>Team chat, CT, alive, no known location.</summary>
+    [JsonPropertyName("CS2_Chat_Team_CT")]
+    public string TeamCT { get; set; } = "(Counter-Terrorist) {1} : {2}";
+
+    /// <summary>Team chat, CT, alive, with location. Empty = use CS2_Chat_Team_CT.</summary>
+    [JsonPropertyName("CS2_Chat_Team_CT_Loc")]
+    public string TeamCTLoc { get; set; } = "(Counter-Terrorist) {1} @ {location} : {2}";
+
+    /// <summary>Team chat, CT, dead.</summary>
+    [JsonPropertyName("CS2_Chat_Team_CT_Dead")]
+    public string TeamCTDead { get; set; } = "*DEAD*(Counter-Terrorist) {1} : {2}";
+
+    /// <summary>Team chat, T, alive, no known location.</summary>
+    [JsonPropertyName("CS2_Chat_Team_T")]
+    public string TeamT { get; set; } = "(Terrorist) {1} : {2}";
+
+    /// <summary>Team chat, T, alive, with location. Empty = use CS2_Chat_Team_T.</summary>
+    [JsonPropertyName("CS2_Chat_Team_T_Loc")]
+    public string TeamTLoc { get; set; } = "(Terrorist) {1} @ {location} : {2}";
+
+    /// <summary>Team chat, T, dead.</summary>
+    [JsonPropertyName("CS2_Chat_Team_T_Dead")]
+    public string TeamTDead { get; set; } = "*DEAD*(Terrorist) {1} : {2}";
+
+    /// <summary>Team chat, spectator.</summary>
+    [JsonPropertyName("CS2_Chat_Team_Spec")]
+    public string TeamSpec { get; set; } = "(Spectator) {1} : {2}";
 
     /// <summary>
-    /// Shown before team-only messages, e.g. "(T)" / "(CT)". {teamcolor} is resolved per sender.
-    /// Empty to disable the team marker.
+    /// Name colour used when no tag provider sets one (CSGO shows names in the team colour).
+    /// Use "default" to keep the old behaviour (white name).
     /// </summary>
-    [JsonPropertyName("TeamPrefix")]
-    public string TeamPrefix { get; set; } = "{teamcolor}(TEAM) ";
+    [JsonPropertyName("DefaultNameColor")]
+    public string DefaultNameColor { get; set; } = "teamcolor";
+
+    /// <summary>Message colour used when no tag provider sets one.</summary>
+    [JsonPropertyName("DefaultMessageColor")]
+    public string DefaultMessageColor { get; set; } = "default";
+
+    /// <summary>
+    /// When true, players that have no tag from any provider also get the CSGO-style formats above.
+    /// When false, they keep the stock CS2 chat line.
+    /// </summary>
+    [JsonPropertyName("FormatPlayersWithoutTags")]
+    public bool FormatPlayersWithoutTags { get; set; } = true;
 
     /// <summary>
     /// Separator inserted BETWEEN two tag prefixes in chat and on the scoreboard. The user wants the

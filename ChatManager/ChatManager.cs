@@ -20,14 +20,14 @@ namespace ChatManager;
 ///   * Prefix order  : by ChatTag.Order ascending  (VIP=10 before admin=20  ->  "[VIP][ADMIN]")
 ///   * Name/msg colour: from the tag with the highest ChatTag.ColorPriority (admin wins)
 ///   * Scoreboard     : the ordered prefixes, stripped of colours, concatenated into player.Clan
-///   * Gag            : delegated to CS2-SimpleAdmin (Gag/Silence) when present
+///   * Gag            : delegated to CS2-SimpleAdmin / Iks_Admin / CS2-AdminPlus when present
 /// </summary>
 public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 {
     public override string ModuleName => "ChatManager";
     public override string ModuleAuthor => "panda";
     public override string ModuleDescription => "CHAT MANAGER";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "1.1.0";
 
     public ChatManagerConfig Config { get; set; } = new();
 
@@ -184,14 +184,14 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         if (IsChatTrigger(message))
             return HookResult.Continue;
 
-        // Gag / silence: delegated to SimpleAdmin. A gagged or silenced player sends nothing.
+        // Gag / silence: delegated to the detected admin plugin. A gagged/silenced player sends nothing.
         if (IsChatBlocked(player))
             return HookResult.Handled;
 
         // Use the cached tags so the chat tag matches the scoreboard exactly. If the cache is cold
         // (e.g. first line before any spawn), compute live and prime the cache.
         var tags = GetTags(player);
-        if (tags.Count == 0)
+        if (tags.Count == 0 && !Config.FormatPlayersWithoutTags)
             return HookResult.Continue; // no provider has a tag -> default chat
 
         var line = BuildChatLine(player, message, tags, teamOnly);
@@ -312,6 +312,44 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         return fresh;
     }
 
+    // {1} = tags + name, {2}/{message}/{msg} = message, {name} = name only, {tag} = tags only,
+    // {location} = sender's map callout.
+    private static readonly System.Text.RegularExpressions.Regex PlaceholderRegex =
+        new(@"\{(1|2|name|message|msg|tag|location)\}",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>The sender's current map callout (e.g. "BombsiteA"), or empty when unknown.</summary>
+    private static string GetLocation(CCSPlayerController player)
+    {
+        try { return player.PlayerPawn.Value?.LastPlaceName?.Trim() ?? string.Empty; }
+        catch { return string.Empty; }
+    }
+
+    /// <summary>
+    /// Picks the configured format for this message: channel (all / team chat), sender team
+    /// (CT / T / spectator), alive or dead, and - for living players in team chat - whether a
+    /// location is known.
+    /// </summary>
+    private string PickFormat(CCSPlayerController player, bool teamOnly, string location)
+    {
+        var c = Config;
+        var alive = player.PawnIsAlive;
+        var hasLoc = location.Length > 0;
+
+        string? fmt = player.Team switch
+        {
+            CsTeam.CounterTerrorist => teamOnly
+                ? (!alive ? c.TeamCTDead : hasLoc && !string.IsNullOrWhiteSpace(c.TeamCTLoc) ? c.TeamCTLoc : c.TeamCT)
+                : (alive ? c.AllCT : c.AllCTDead),
+            CsTeam.Terrorist => teamOnly
+                ? (!alive ? c.TeamTDead : hasLoc && !string.IsNullOrWhiteSpace(c.TeamTLoc) ? c.TeamTLoc : c.TeamT)
+                : (alive ? c.AllT : c.AllTDead),
+            _ => teamOnly ? c.TeamSpec : c.AllSpec
+        };
+
+        return string.IsNullOrWhiteSpace(fmt) ? "{1} : {2}" : fmt;
+    }
+
     private string BuildChatLine(CCSPlayerController player, string message, List<ChatTag> tags, bool teamOnly)
     {
         var team = player.Team;
@@ -327,25 +365,36 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
         var prefix = string.Join(Config.TagSeparator, orderedPrefixes);
 
-        // Colours: the highest ColorPriority wins (admin over VIP). Fall back to default.
+        // Colours: the highest ColorPriority wins (admin over VIP). Fall back to the configured defaults.
         var colorSource = tags
             .OrderByDescending(t => t.ColorPriority)
             .FirstOrDefault();
 
-        var nameColor = ColorResolver.ColorChar(colorSource?.NameColor, team);
-        var msgColor = ColorResolver.ColorChar(colorSource?.MessageColor, team);
+        var nameColor = ColorResolver.ColorChar(
+            string.IsNullOrWhiteSpace(colorSource?.NameColor) ? Config.DefaultNameColor : colorSource!.NameColor, team);
+        var msgColor = ColorResolver.ColorChar(
+            string.IsNullOrWhiteSpace(colorSource?.MessageColor) ? Config.DefaultMessageColor : colorSource!.MessageColor, team);
 
-        var dead = !player.PawnIsAlive
-            ? ColorResolver.ResolveTokens(Config.DeadPrefix, team)
-            : string.Empty;
+        var tagPart = prefix.Length > 0 ? prefix + " " : string.Empty;
+        var namePart = $"{nameColor}{player.PlayerName}{ChatColors.Default}";
+        var messagePart = $"{msgColor}{message}";
+        var location = GetLocation(player);
 
-        var teamMark = teamOnly && !string.IsNullOrEmpty(Config.TeamPrefix)
-            ? ColorResolver.ResolveTokens(Config.TeamPrefix, team)
-            : string.Empty;
+        // Resolve colour tokens in the FORMAT first, then substitute the placeholders in a single
+        // pass so player-supplied text (name / message) is never re-interpreted as a token.
+        var resolved = ColorResolver.ResolveTokens(PickFormat(player, teamOnly, location), team);
+        var line = PlaceholderRegex.Replace(resolved, m => m.Groups[1].Value.ToLowerInvariant() switch
+        {
+            "1" => tagPart + namePart,
+            "2" or "message" or "msg" => messagePart,
+            "name" => namePart,
+            "tag" => tagPart,
+            "location" => location,
+            _ => m.Value
+        });
 
-        var sep = prefix.Length > 0 ? " " : string.Empty;
-
-        return $" {dead}{teamMark}{prefix}{sep}{nameColor}{player.PlayerName}{ChatColors.Default}: {msgColor}{message}";
+        // Leading space: CS2 chat only honours a colour on the first character after a space.
+        return " " + line;
     }
 
     // --- Refresh (chat tag cache + scoreboard) ------------------------------------------------
