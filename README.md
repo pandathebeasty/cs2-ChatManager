@@ -111,6 +111,3 @@ Requires the .NET 10 SDK.
 ```
 dotnet build ChatManager/ChatManager.csproj -c Release
 ```
-
-Ship `ChatManager.dll` (plugins folder) and `ChatManagerApi.dll` (shared folder). Do not ship
-`CounterStrikeSharp.API.dll`.
