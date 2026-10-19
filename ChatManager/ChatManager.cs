@@ -365,9 +365,12 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
         var prefix = string.Join(Config.TagSeparator, orderedPrefixes);
 
-        // Colours: the highest ColorPriority wins (admin over VIP). Fall back to the configured defaults.
+        // Colours for the NAME and MESSAGE: the highest ColorPriority wins (admin over VIP).
+        // On a tie, the higher Order wins (the tag further to the right). Tag prefixes keep their
+        // own colours regardless - only name/message colour comes from this source.
         var colorSource = tags
             .OrderByDescending(t => t.ColorPriority)
+            .ThenByDescending(t => t.Order)
             .FirstOrDefault();
 
         var nameColor = ColorResolver.ColorChar(
