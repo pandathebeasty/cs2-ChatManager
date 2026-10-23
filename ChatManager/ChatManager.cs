@@ -12,13 +12,10 @@ using Microsoft.Extensions.Logging;
 namespace ChatManager;
 
 /// <summary>
-/// Central chat/tag broker. It owns the single say / say_team hook and the single writer of
-/// player.Clan, and merges tag contributions from any number of providers (VIPCore's VIP_Tags,
-/// CS2-Tags, ...). Providers no longer hook chat or write the clan tag themselves, which removes
-/// the double-message / overwrite conflicts.
+/// Central chat/tag broker. say / say_team hook integration for chat management.
 ///
-///   * Prefix order  : by ChatTag.Order ascending  (VIP=10 before admin=20  ->  "[VIP][ADMIN]")
-///   * Name/msg colour: from the tag with the highest ChatTag.ColorPriority (admin wins)
+///   * Prefix order   : by ChatTag.Order ascending 
+///   * Name/msg colour: from the tag with the highest ChatTag.ColorPriority
 ///   * Scoreboard     : the ordered prefixes, stripped of colours, concatenated into player.Clan
 ///   * Gag            : delegated to CS2-SimpleAdmin / Iks_Admin / CS2-AdminPlus when present
 /// </summary>
@@ -104,7 +101,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
         // Iks_Admin via reflection (capability "iksadmin:core"), no DLL dependency.
         _iksAdmin = IksAdminGagReader.TryCreate();
-
+        
         var gagSources = new List<string>();
         if (_simpleAdmin != null) gagSources.Add("CS2-SimpleAdmin");
         if (_iksAdmin != null) gagSources.Add("Iks_Admin");
@@ -164,7 +161,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         if (string.IsNullOrWhiteSpace(name)) return;
         _providers.TryRemove(name, out _);
     }
-
+    
     // --- Chat handling ------------------------------------------------------------------------
 
     private HookResult OnSay(CCSPlayerController? player, CommandInfo info) => HandleChat(player, info, false);
@@ -174,7 +171,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     {
         if (player is not { IsValid: true } || player.IsBot)
             return HookResult.Continue;
-
+        
         var message = info.GetArg(1);
         if (string.IsNullOrWhiteSpace(message))
             return HookResult.Continue;
@@ -290,7 +287,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
             ChatTag? tag;
             try { tag = provider(player); }
             catch { tag = null; } // a misbehaving provider must not break chat
-
+            
             if (tag != null)
                 result.Add(tag);
         }
@@ -354,9 +351,9 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     private string BuildChatLine(CCSPlayerController player, string message, List<ChatTag> tags, bool teamOnly)
     {
         var team = player.Team;
-
-        // Prefix: all tag prefixes in Order (VIP first), concatenated with the configured separator
-        // (empty by default, so "[VIP][ADMIN]").
+        
+        // Prefix: all tag prefixes in Order, concatenated with the configured separator
+        // (empty by default, so "[TAG_1][TAG_2]").
         var orderedPrefixes = tags
             .Where(t => !string.IsNullOrEmpty(t.ChatPrefix))
             .OrderBy(t => t.Order)
@@ -366,7 +363,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
         var prefix = string.Join(Config.TagSeparator, orderedPrefixes);
 
-        // Colours for the NAME and MESSAGE: the highest ColorPriority wins (admin over VIP).
+        // Colours for the NAME and MESSAGE: the highest ColorPriority wins.
         // On a tie, the higher Order wins (the tag further to the right). Tag prefixes keep their
         // own colours regardless - only name/message colour comes from this source.
         var colorSource = tags
@@ -383,7 +380,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         var namePart = $"{nameColor}{player.PlayerName}{ChatColors.Default}";
         var messagePart = $"{msgColor}{message}";
         var location = GetLocation(player);
-
+        
         // Resolve colour tokens in the FORMAT first, then substitute the placeholders in a single
         // pass so player-supplied text (name / message) is never re-interpreted as a token.
         var resolved = ColorResolver.ResolveTokens(PickFormat(player, teamOnly, location), team);
@@ -406,7 +403,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     /// <summary>
     /// Recomputes the player's tags from all providers and applies them to BOTH the chat tag cache
     /// (so the next chat line uses the new tags) AND the scoreboard clan tag. Providers call this
-    /// whenever a player's tag could have changed (spawn, VIP toggle, admin change).
+    /// whenever a player's tag could have changed (spawn, toggle, change, etc).
     /// </summary>
     internal void RefreshTags(CCSPlayerController player)
     {
@@ -427,7 +424,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
             .Select(t => ColorResolver.StripTokens(t.ScoreboardTag))
             .Where(s => s.Length > 0)
             .ToList();
-
+        
         var clan = string.Join(Config.TagSeparator, parts);
 
         player.Clan = clan;

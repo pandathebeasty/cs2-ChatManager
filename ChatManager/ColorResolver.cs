@@ -54,8 +54,7 @@ public static class ColorResolver
 
         if (n is "teamcolor" or "team")
             return ChatColors.ForTeam(team);
-
-        // Every colour exposed by CounterStrikeSharp's ChatColors, with common spelling aliases.
+        
         return n switch
         {
             "default" => ChatColors.Default,
