@@ -26,9 +26,9 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 {
     public override string ModuleName => "ChatManager";
     public override string ModuleAuthor => "panda";
-    public override string ModuleDescription => "CHAT MANAGER";
-    public override string ModuleVersion => "1.1.0";
-
+    public override string ModuleDescription => "CS2 Chat Processor for CounterStrikeSharp";
+    public override string ModuleVersion => "1.1.1";
+    
     public ChatManagerConfig Config { get; set; } = new();
 
     private readonly ConcurrentDictionary<string, ChatTagProvider> _providers = new();
@@ -44,7 +44,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
     // Chat command triggers (e.g. "!", "/", ".") used to detect command input that must not be
     // re-broadcast as a normal chat line. Built from CounterStrikeSharp's core.json plus extras.
-    private string[] _chatTriggers = ["!", "/"];
+    private string[] _chatTriggers = ["!", "/", "."];
 
     public void OnConfigParsed(ChatManagerConfig config) => Config = config;
 
@@ -140,6 +140,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
             // Core config unavailable for some reason - keep the sensible defaults.
             triggers.Add("!");
             triggers.Add("/");
+            triggers.Add(".");
         }
 
         foreach (var t in Config.ExtraChatTriggers)
@@ -148,7 +149,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         _chatTriggers = triggers.ToArray();
         Logger.LogInformation("[ChatManager] Chat command triggers: {Triggers}", string.Join(" ", _chatTriggers));
     }
-
+    
     // --- Provider registry (called by ChatManagerApiImpl) ------------------------------------
 
     internal void RegisterProvider(string name, ChatTagProvider provider)
