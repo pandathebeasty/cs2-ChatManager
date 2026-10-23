@@ -106,7 +106,7 @@ public sealed class ChatManagerConfig : BasePluginConfig
     /// </summary>
     [JsonPropertyName("TagSeparator")]
     public string TagSeparator { get; set; } = "";
-
+    
     /// <summary>
     /// Extra chat command triggers to hide, in ADDITION to CounterStrikeSharp's own PublicChatTrigger
     /// and SilentChatTrigger from core.json. A message starting with any of these is treated as a
@@ -114,5 +114,5 @@ public sealed class ChatManagerConfig : BasePluginConfig
     /// so ".ws", ".gloves" etc. stay hidden even though "." is not a CounterStrikeSharp trigger.
     /// </summary>
     [JsonPropertyName("ExtraChatTriggers")]
-    public List<string> ExtraChatTriggers { get; set; } = ["."];
+    public List<string> ExtraChatTriggers { get; set; } = [""];
 }
