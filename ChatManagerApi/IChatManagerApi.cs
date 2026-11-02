@@ -73,6 +73,19 @@ public delegate ChatTag? ChatTagProvider(CCSPlayerController player);
 public delegate bool ChatMessageFilter(CCSPlayerController player, string message, bool teamOnly);
 
 /// <summary>
+/// A read-only chat observer. ChatManager calls every registered observer for EACH incoming chat
+/// line - tagged or not, say or say_team, and even for messages that are later blocked (gag /
+/// filter) - so a watcher sees every message ATTEMPT. The observer must not mutate anything and its
+/// return is ignored; it cannot block a message (use a <see cref="ChatMessageFilter"/> for that).
+/// This is what lets a spy/logger plugin (e.g. AdminUtils) observe chat even for players who have a
+/// tag, instead of racing ChatManager over the say hook (which ChatManager consumes with Handled).
+/// </summary>
+/// <param name="player">The sender.</param>
+/// <param name="message">The raw chat text (as typed).</param>
+/// <param name="teamOnly">True for say_team, false for global say.</param>
+public delegate void ChatObserver(CCSPlayerController player, string message, bool teamOnly);
+
+/// <summary>
 /// The shared ChatManager API. The ChatManager plugin publishes an implementation through the
 /// capability below; provider plugins resolve it in OnAllPluginsLoaded and register themselves.
 /// </summary>
@@ -104,6 +117,20 @@ public interface IChatManagerApi
 
     /// <summary>Removes a previously registered message filter. No-op if it was not registered.</summary>
     void UnregisterMessageFilter(string name);
+
+    /// <summary>
+    /// Registers a read-only chat observer under a unique name. ChatManager calls every observer for
+    /// each incoming chat line (tagged or not, say or say_team, including messages later blocked by a
+    /// gag or filter), so a watcher sees every message attempt. The observer cannot block a message.
+    /// Calling again with the same name replaces the previous observer (safe for hot reloads).
+    /// Use this from a spy/logging plugin so chat is observed even for players who have a tag.
+    /// </summary>
+    /// <param name="name">Unique observer id, e.g. "adminutils-spy".</param>
+    /// <param name="observer">Callback invoked for each chat line.</param>
+    void RegisterChatObserver(string name, ChatObserver observer);
+
+    /// <summary>Removes a previously registered chat observer. No-op if it was not registered.</summary>
+    void UnregisterChatObserver(string name);
 
     /// <summary>
     /// Recomputes a player's tags from all providers and applies them to BOTH the chat tag (used by

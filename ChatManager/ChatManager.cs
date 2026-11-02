@@ -24,12 +24,13 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     public override string ModuleName => "ChatManager";
     public override string ModuleAuthor => "panda";
     public override string ModuleDescription => "CS2 Chat Processor for CounterStrikeSharp";
-    public override string ModuleVersion => "1.1.2";
+    public override string ModuleVersion => "1.1.3";
     
     public ChatManagerConfig Config { get; set; } = new();
 
     private readonly ConcurrentDictionary<string, ChatTagProvider> _providers = new();
     private readonly ConcurrentDictionary<string, ChatMessageFilter> _messageFilters = new();
+    private readonly ConcurrentDictionary<string, ChatObserver> _observers = new();
     private ICS2_SimpleAdminApi? _simpleAdmin;
     private AdminPlusGagReader? _adminPlusGag;
     private IksAdminGagReader? _iksAdmin;
@@ -176,6 +177,32 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         _messageFilters.TryRemove(name, out _);
     }
 
+    internal void RegisterChatObserver(string name, ChatObserver observer)
+    {
+        if (string.IsNullOrWhiteSpace(name) || observer == null) return;
+        _observers[name] = observer;
+        Logger.LogInformation("[ChatManager] Registered chat observer '{Name}'.", name);
+    }
+
+    internal void UnregisterChatObserver(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        _observers.TryRemove(name, out _);
+    }
+
+    /// <summary>
+    /// Notifies every registered observer of a chat line. Read-only: a throwing observer is ignored
+    /// and an observer can never block a message (that is a filter's job).
+    /// </summary>
+    private void NotifyObservers(CCSPlayerController player, string message, bool teamOnly)
+    {
+        foreach (var observer in _observers.Values)
+        {
+            try { observer(player, message, teamOnly); }
+            catch { /* a misbehaving observer must not break chat */ }
+        }
+    }
+
     /// <summary>
     /// Runs every registered moderation filter. Returns true if ANY filter wants the message blocked.
     /// A throwing filter is ignored (it must not break chat).
@@ -213,6 +240,11 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         // SilentChatTrigger), so if the admin customises them, ChatManager follows automatically.
         if (IsChatTrigger(message))
             return HookResult.Continue;
+
+        // Read-only observers (e.g. AdminUtils chat-spy) see EVERY message attempt - tagged or not,
+        // even ones that are about to be blocked by a gag or a filter. They cannot block the message;
+        // this is what lets a spy watch chat even for players ChatManager would otherwise consume.
+        NotifyObservers(player, message, teamOnly);
 
         // Gag / silence: delegated to the detected admin plugin. A gagged/silenced player sends nothing.
         if (IsChatBlocked(player))
@@ -479,4 +511,6 @@ internal sealed class ChatManagerApiImpl(ChatManager plugin) : IChatManagerApi
     public void RefreshTags(CCSPlayerController player) => plugin.RefreshTags(player);
     public void RegisterMessageFilter(string name, ChatMessageFilter filter) => plugin.RegisterMessageFilter(name, filter);
     public void UnregisterMessageFilter(string name) => plugin.UnregisterMessageFilter(name);
+    public void RegisterChatObserver(string name, ChatObserver observer) => plugin.RegisterChatObserver(name, observer);
+    public void UnregisterChatObserver(string name) => plugin.UnregisterChatObserver(name);
 }
