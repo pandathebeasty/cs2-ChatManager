@@ -5,8 +5,6 @@ the single writer of `player.Clan`, and merges tag contributions from any number
 plugins into **one** chat line and **one** scoreboard clan tag. Providers no longer hook chat or
 write the clan tag themselves, which removes the double-message / tag-overwrite conflicts.
 
-Current version: **1.1.0** (.NET 10).
-
 ## How it works
 
 - **Prefix order**: tag prefixes are concatenated in `ChatTag.Order` ascending (VIP = 10 before
