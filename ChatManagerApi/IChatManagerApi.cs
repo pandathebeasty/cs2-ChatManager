@@ -61,6 +61,18 @@ public sealed class ChatTag
 public delegate ChatTag? ChatTagProvider(CCSPlayerController player);
 
 /// <summary>
+/// A moderation filter. The ChatManager calls every registered filter for each incoming chat line
+/// BEFORE it builds/sends the tagged line. Return true to BLOCK the message (ChatManager will not
+/// broadcast it); return false to allow it. This lets a moderation plugin (e.g. AutoMod) inspect and
+/// block chat even for players who have a tag, instead of fighting ChatManager over the say hook.
+/// </summary>
+/// <param name="player">The sender.</param>
+/// <param name="message">The raw chat text (as typed).</param>
+/// <param name="teamOnly">True for say_team, false for global say.</param>
+/// <returns>True to block (drop) the message; false to allow it through.</returns>
+public delegate bool ChatMessageFilter(CCSPlayerController player, string message, bool teamOnly);
+
+/// <summary>
 /// The shared ChatManager API. The ChatManager plugin publishes an implementation through the
 /// capability below; provider plugins resolve it in OnAllPluginsLoaded and register themselves.
 /// </summary>
@@ -79,6 +91,19 @@ public interface IChatManagerApi
 
     /// <summary>Removes a previously registered provider. No-op if it was not registered.</summary>
     void UnregisterProvider(string name);
+
+    /// <summary>
+    /// Registers a moderation filter under a unique name. ChatManager calls every filter for each
+    /// chat line before sending it; if any filter returns true, the message is blocked and not
+    /// broadcast. Calling again with the same name replaces the previous filter (safe for reloads).
+    /// Use this from a moderation plugin so chat is checked even for players who have a tag.
+    /// </summary>
+    /// <param name="name">Unique filter id, e.g. "automod".</param>
+    /// <param name="filter">Callback returning true to block the message.</param>
+    void RegisterMessageFilter(string name, ChatMessageFilter filter);
+
+    /// <summary>Removes a previously registered message filter. No-op if it was not registered.</summary>
+    void UnregisterMessageFilter(string name);
 
     /// <summary>
     /// Recomputes a player's tags from all providers and applies them to BOTH the chat tag (used by

@@ -24,11 +24,12 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     public override string ModuleName => "ChatManager";
     public override string ModuleAuthor => "panda";
     public override string ModuleDescription => "CS2 Chat Processor for CounterStrikeSharp";
-    public override string ModuleVersion => "1.1.1";
+    public override string ModuleVersion => "1.1.2";
     
     public ChatManagerConfig Config { get; set; } = new();
 
     private readonly ConcurrentDictionary<string, ChatTagProvider> _providers = new();
+    private readonly ConcurrentDictionary<string, ChatMessageFilter> _messageFilters = new();
     private ICS2_SimpleAdminApi? _simpleAdmin;
     private AdminPlusGagReader? _adminPlusGag;
     private IksAdminGagReader? _iksAdmin;
@@ -161,6 +162,37 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
         if (string.IsNullOrWhiteSpace(name)) return;
         _providers.TryRemove(name, out _);
     }
+
+    internal void RegisterMessageFilter(string name, ChatMessageFilter filter)
+    {
+        if (string.IsNullOrWhiteSpace(name) || filter == null) return;
+        _messageFilters[name] = filter;
+        Logger.LogInformation("[ChatManager] Registered message filter '{Name}'.", name);
+    }
+
+    internal void UnregisterMessageFilter(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        _messageFilters.TryRemove(name, out _);
+    }
+
+    /// <summary>
+    /// Runs every registered moderation filter. Returns true if ANY filter wants the message blocked.
+    /// A throwing filter is ignored (it must not break chat).
+    /// </summary>
+    private bool IsBlockedByFilter(CCSPlayerController player, string message, bool teamOnly)
+    {
+        foreach (var filter in _messageFilters.Values)
+        {
+            try
+            {
+                if (filter(player, message, teamOnly))
+                    return true;
+            }
+            catch { /* a misbehaving filter must not break chat */ }
+        }
+        return false;
+    }
     
     // --- Chat handling ------------------------------------------------------------------------
 
@@ -184,6 +216,13 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
 
         // Gag / silence: delegated to the detected admin plugin. A gagged/silenced player sends nothing.
         if (IsChatBlocked(player))
+            return HookResult.Handled;
+
+        // Moderation filters (e.g. AutoMod). Run for EVERY message - tagged or not - before anything
+        // is sent, so a blocked message is dropped regardless of whether the player has a tag. This
+        // is what lets AutoMod moderate players who have a tag, instead of racing ChatManager on the
+        // say hook.
+        if (IsBlockedByFilter(player, message, teamOnly))
             return HookResult.Handled;
 
         // Use the cached tags so the chat tag matches the scoreboard exactly. If the cache is cold
@@ -438,4 +477,6 @@ internal sealed class ChatManagerApiImpl(ChatManager plugin) : IChatManagerApi
     public void RegisterProvider(string name, ChatTagProvider provider) => plugin.RegisterProvider(name, provider);
     public void UnregisterProvider(string name) => plugin.UnregisterProvider(name);
     public void RefreshTags(CCSPlayerController player) => plugin.RefreshTags(player);
+    public void RegisterMessageFilter(string name, ChatMessageFilter filter) => plugin.RegisterMessageFilter(name, filter);
+    public void UnregisterMessageFilter(string name) => plugin.UnregisterMessageFilter(name);
 }
