@@ -24,7 +24,7 @@ public sealed class ChatManager : BasePlugin, IPluginConfig<ChatManagerConfig>
     public override string ModuleName => "ChatManager";
     public override string ModuleAuthor => "panda";
     public override string ModuleDescription => "CS2 Chat Processor for CounterStrikeSharp";
-    public override string ModuleVersion => "1.1.3";
+    public override string ModuleVersion => "1.1.4";
     
     public ChatManagerConfig Config { get; set; } = new();
 
